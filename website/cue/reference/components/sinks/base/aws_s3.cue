@@ -619,7 +619,7 @@ base: components: sinks: aws_s3: configuration: {
 		description: """
 			Specifies which addressing style to use.
 
-			This controls if the bucket name is in the hostname or part of the URL.
+			This controls if the bucket name is in the hostname or is part of the URL.
 			"""
 		required: false
 		type: bool: default: true
