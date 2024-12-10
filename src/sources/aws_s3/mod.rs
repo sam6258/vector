@@ -1045,6 +1045,7 @@ mod integration_tests {
             &proxy_config,
             &None,
             &None,
+            true,
         )
         .await
         .unwrap()

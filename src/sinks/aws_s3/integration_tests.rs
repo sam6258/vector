@@ -396,6 +396,25 @@ async fn s3_healthchecks() {
 }
 
 #[tokio::test]
+async fn s3_healthchecks_vhost() {
+    let bucket = uuid::Uuid::new_v4().to_string();
+
+    create_bucket(&bucket, false).await;
+
+    let mut config = config(&bucket,1);
+    config.force_path_style = false;
+    let service = config
+        .create_service(&ProxyConfig::from_env())
+        .await
+        .unwrap();
+    config
+        .build_healthcheck(service.client())
+        .unwrap()
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn s3_healthchecks_invalid_bucket() {
     let config = config("s3_healthchecks_invalid_bucket", 1);
     let service = config
@@ -438,6 +457,7 @@ async fn s3_flush_on_exhaustion() {
             auth: Default::default(),
             acknowledgements: Default::default(),
             timezone: Default::default(),
+            force_path_style: Default::default(),
         }
     };
     let prefix = config.key_prefix.clone();
@@ -496,6 +516,7 @@ async fn client() -> S3Client {
         &proxy,
         &tls_options,
         &None,
+        true,
     )
     .await
     .unwrap()
@@ -522,6 +543,7 @@ fn config(bucket: &str, batch_size: usize) -> S3SinkConfig {
         auth: Default::default(),
         acknowledgements: Default::default(),
         timezone: Default::default(),
+        force_path_style: Default::default(),
     }
 }
 
