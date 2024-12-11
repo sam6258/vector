@@ -5,6 +5,8 @@ use std::{
     time::Duration,
 };
 
+use url::Url;
+
 use aws_sdk_s3::{
     operation::{create_bucket::CreateBucketError, get_object::GetObjectOutput},
     types::{
@@ -46,6 +48,18 @@ use crate::{
 
 fn s3_address() -> String {
     std::env::var("S3_ADDRESS").unwrap_or_else(|_| "http://localhost:4566".into())
+}
+
+fn s3_address_vhost() -> String {
+    let mut url = Url::parse(&s3_address()).expect("Failed to parse URL");
+
+    // Modify the host to prepend 's3.' to the current host
+    if let Some(host) = url.host_str() {
+        let new_host = format!("s3.{}", host);
+        url.set_host(Some(&new_host)).expect("Failed to set host");
+    }
+
+    url.to_string()
 }
 
 #[tokio::test]
@@ -397,12 +411,11 @@ async fn s3_healthchecks() {
 
 #[tokio::test]
 async fn s3_healthchecks_vhost() {
-    let bucket = uuid::Uuid::new_v4().to_string();
+    let bucket = "vhost-test";
 
-    create_bucket(&bucket, false).await;
+    create_bucket_vhost(&bucket, false).await;
 
-    let mut config = config(&bucket,1);
-    config.force_path_style = false;
+    let config = config_vhost(&bucket, 1);
     let service = config
         .create_service(&ProxyConfig::from_env())
         .await
@@ -504,7 +517,7 @@ async fn s3_flush_on_exhaustion() {
     assert_eq!(lines, response_lines); // if all events are received, and lines.len() < batch size, then a flush was performed.
 }
 
-async fn client() -> S3Client {
+async fn client_with_options(force_path_style: impl Into<bool>) -> S3Client {
     let auth = AwsAuthentication::test_auth();
     let region = RegionOrEndpoint::with_both("us-east-1", s3_address());
     let proxy = ProxyConfig::default();
@@ -516,10 +529,18 @@ async fn client() -> S3Client {
         &proxy,
         &tls_options,
         &None,
-        true,
+        force_path_style,
     )
     .await
     .unwrap()
+}
+
+async fn client() -> S3Client {
+    client_with_options(true).await
+}
+
+async fn client_vhost() -> S3Client {
+    client_with_options(false).await
 }
 
 fn config(bucket: &str, batch_size: usize) -> S3SinkConfig {
@@ -547,6 +568,13 @@ fn config(bucket: &str, batch_size: usize) -> S3SinkConfig {
     }
 }
 
+fn config_vhost(bucket: &str, batch_size: usize) -> S3SinkConfig {
+    let mut config = config(&bucket, batch_size);
+    config.force_path_style = false;
+    config.region = RegionOrEndpoint::with_both("us-east-1", s3_address_vhost());
+    config
+}
+
 fn make_events_batch(
     len: usize,
     count: usize,
@@ -561,9 +589,8 @@ fn make_events_batch(
     (lines, events.map(Into::into), receiver)
 }
 
-async fn create_bucket(bucket: &str, object_lock_enabled: bool) {
-    match client()
-        .await
+async fn create_bucket_with_client(bucket: &str, object_lock_enabled: bool, client: S3Client) {
+    match client
         .create_bucket()
         .bucket(bucket.to_string())
         .object_lock_enabled_for_bucket(object_lock_enabled)
@@ -579,6 +606,14 @@ async fn create_bucket(bucket: &str, object_lock_enabled: bool) {
             err => panic!("Failed to create bucket: {:?}", err),
         },
     }
+}
+
+async fn create_bucket(bucket: &str, object_lock_enabled: bool) {
+    create_bucket_with_client(bucket, object_lock_enabled, client().await).await
+}
+
+async fn create_bucket_vhost(bucket: &str, object_lock_enabled: bool) {
+    create_bucket_with_client(bucket, object_lock_enabled, client_vhost().await).await
 }
 
 async fn list_objects(bucket: &str, prefix: String) -> Option<Vec<aws_sdk_s3::types::Object>> {
