@@ -457,7 +457,7 @@ async fn s3_flush_on_exhaustion() {
             auth: Default::default(),
             acknowledgements: Default::default(),
             timezone: Default::default(),
-            force_path_style: Default::default(),
+            force_path_style: true,
         }
     };
     let prefix = config.key_prefix.clone();
@@ -543,7 +543,7 @@ fn config(bucket: &str, batch_size: usize) -> S3SinkConfig {
         auth: Default::default(),
         acknowledgements: Default::default(),
         timezone: Default::default(),
-        force_path_style: Default::default(),
+        force_path_style: true,
     }
 }
 

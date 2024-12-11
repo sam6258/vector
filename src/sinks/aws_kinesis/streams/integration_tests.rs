@@ -183,7 +183,7 @@ async fn client() -> aws_sdk_kinesis::Client {
         &proxy,
         &None,
         &None,
-        true,
+        false,
     )
     .await
     .unwrap()
